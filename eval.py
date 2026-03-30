@@ -30,7 +30,8 @@ def main(args):
     assert len(cfg['val_split']) > 0, "Test set must be specified!"
 
     cfg['dataset']['backbone'] = args.backbone
-    cfg['dataset']['feat_folder'] = args.feat_folder
+    if args.feat_folder != 'features':  # only override if explicitly provided
+        cfg['dataset']['feat_folder'] = args.feat_folder
     cfg['dataset']['num_frames'] = args.num_frames
     cfg['dataset']['feat_stride'] = args.stride
     cfg['dataset']['division_type'] = args.division_type
@@ -38,8 +39,12 @@ def main(args):
 
     json_file_path = cfg['dataset']['json_file']
     json_file_dir = os.path.dirname(json_file_path)
-    json_file_name = os.path.basename(json_file_path).replace('.json', f'_{args.division_type}.json')
-    cfg['dataset']['json_file'] = os.path.join(json_file_dir, json_file_name)
+    if args.division_type == 'recordings':
+        # default dataset file already recordings.json in the repo
+        cfg['dataset']['json_file'] = json_file_path
+    else:
+        # person/environment/recipes file names are in the same folder
+        cfg['dataset']['json_file'] = os.path.join(json_file_dir, f"{args.division_type}.json")
 
     backbone = args.backbone
     division_type = args.division_type
@@ -56,7 +61,14 @@ def main(args):
     print(f"Output folder name: {output_folder_name}")
     # ToDo: override the args.ckpt with the cfg generated ckpt folder
     dataset_name = cfg['dataset_name']
+    print(f"DEBUG eval: cfg['output_folder']={cfg['output_folder']}")
+    print(f"DEBUG eval: dataset_name={dataset_name}")
+    print(f"DEBUG eval: output_folder_name={output_folder_name}")
+    print(f"DEBUG eval: args.ckpt (original)={args.ckpt}")
     args.ckpt = os.path.join(cfg['output_folder'], dataset_name, output_folder_name + '_' + str(args.ckpt))
+    print(f"DEBUG eval: final args.ckpt path={args.ckpt}")
+    print(f"DEBUG eval: os.path.isdir(args.ckpt)={os.path.isdir(args.ckpt)}")
+    print(f"DEBUG eval: os.path.isfile(args.ckpt)={os.path.isfile(args.ckpt)}")
 
     if ".pth.tar" in args.ckpt:
         assert os.path.isfile(args.ckpt), "CKPT file does not exist!"
@@ -99,6 +111,8 @@ def main(args):
         cfg['model']['input_dim'] = 400
     elif args.backbone == 'x3d':
         cfg['model']['input_dim'] = 400
+    elif args.backbone == 'perception_encoder':
+        cfg['model']['input_dim'] = 1024
 
     # model
     model = make_meta_arch(cfg['model_name'], **cfg['model'])
@@ -110,7 +124,7 @@ def main(args):
     # load ckpt, reset epoch / best rmse
     checkpoint = torch.load(
         ckpt_file,
-        map_location = lambda storage, loc: storage.cuda(cfg['devices'][0])
+        map_location = lambda storage, loc: storage.cuda(int(cfg['devices'][0].split(':')[1]) if ':' in cfg['devices'][0] else 0)
     )
     # load ema model instead
     print("Loading from EMA model ...")
@@ -167,7 +181,7 @@ if __name__ == '__main__':
 
     # Added to CLI
     parser.add_argument('--backbone', default='omnivore', type=str,
-                        choices=['omnivore', '3dresnet', 'videomae', 'slowfast', 'x3d'])
+                        choices=['omnivore', '3dresnet', 'videomae', 'slowfast', 'x3d', 'perception_encoder'])
     parser.add_argument('--division_type', default='recordings', type=str,
                         choices=['recordings', 'person', 'environment', 'recipes'])
     parser.add_argument('--feat_folder', default='features', type=str,)

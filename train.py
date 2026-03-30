@@ -34,15 +34,20 @@ def main(args):
         raise ValueError("Config file does not exist.")
 
     cfg['dataset']['backbone'] = args.backbone
-    cfg['dataset']['feat_folder'] = args.feat_folder
+    if args.feat_folder != 'features':  # only override if explicitly provided
+        cfg['dataset']['feat_folder'] = args.feat_folder
     cfg['dataset']['num_frames'] = args.num_frames
     cfg['dataset']['feat_stride'] = args.stride
     cfg['dataset']['division_type'] = args.division_type
 
     json_file_path = cfg['dataset']['json_file']
     json_file_dir = os.path.dirname(json_file_path)
-    json_file_name = os.path.basename(json_file_path).replace('.json', f'_{args.division_type}.json')
-    cfg['dataset']['json_file'] = os.path.join(json_file_dir, json_file_name)
+    if args.division_type == 'recordings':
+        # default dataset file already recordings.json in the repo
+        cfg['dataset']['json_file'] = json_file_path
+    else:
+        # person/environment/recipes file names are in the same folder
+        cfg['dataset']['json_file'] = os.path.join(json_file_dir, f"{args.division_type}.json")
 
     backbone = args.backbone
     division_type = args.division_type
@@ -67,6 +72,9 @@ def main(args):
     elif backbone == 'x3d':
         cfg['dataset']['input_dim'] = (192, 64)
         cfg['model']['input_dim'] = (192, 64)
+    elif backbone == 'perception_encoder':
+        cfg['dataset']['input_dim'] = 1024
+        cfg['model']['input_dim'] = 1024
     pprint(cfg)
 
     # prep for output folder (based on time stamp)
@@ -82,7 +90,7 @@ def main(args):
             output_folder_name + '_' + args.output
         )
     if not os.path.exists(ckpt_folder):
-        os.mkdir(ckpt_folder)
+        os.makedirs(ckpt_folder, exist_ok=True)
     # tensorboard writer
     tb_writer = SummaryWriter(os.path.join(ckpt_folder, 'logs'))
 
@@ -209,7 +217,7 @@ if __name__ == '__main__':
                         help='path to a checkpoint (default: none)')
     # Added to CLI
     parser.add_argument('--backbone', default='omnivore', type=str,
-                        choices=['omnivore', '3dresnet', 'videomae', 'slowfast', 'x3d'])
+                        choices=['omnivore', '3dresnet', 'videomae', 'slowfast', 'x3d', 'perception_encoder'])
     parser.add_argument('--division_type', default='recordings', type=str,
                         choices=['recordings', 'person', 'environment', 'recipes'])
     parser.add_argument('--feat_folder', default='features', type=str, )
