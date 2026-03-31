@@ -3,7 +3,7 @@ import pickle
 import pprint
 from pathlib import Path
 import numpy as np
-from sklearn.base import defaultdict
+from collections import defaultdict # Corretto da sklearn.base a collections
 
 
 # label del eval_results.pkl:
@@ -13,39 +13,10 @@ from sklearn.base import defaultdict
 # - label : listo of the step-id associated with video_ids, t-starts and t-ends
 # - scores: list of confidence scores for each step prediction
 
-
-
-def load_pkl(pkl_path:Path):
+def load_pkl(pkl_path: Path):
     """Load the evaluation results from a pickle file and organize them into a dictionary format."""
-
     with open(pkl_path, 'rb') as f:
-        data= pickle.load(f)
-    """
-    print("Type of data:", type(data))
-
-    if isinstance(data, dict):
-        print("Keys in the dictionary:", data.keys())
-        for k,v in data.items():
-            print(f"Key: {k}, Value Type: {type(v)}")
-            if isinstance(v, dict):
-                print(f"  Sub-keys in '{k}': {v.keys()}")
-                for sub_k, sub_v in v.items():
-                    print(f"    Sub-key: {sub_k}, Sub-value Type: {type(sub_v)}")
-                    if isinstance(sub_v, dict):
-                        print(f"      Sub-sub-keys in '{sub_k}': {sub_v.keys()}")
-
-    for k,v in data.items():
-        print(f"KEY: {k}")
-        if isinstance(v, np.ndarray):
-            print(f"Value is a numpy array with shape: {v.shape}")
-            print(f"Data type of elements: {v.dtype}")
-            print(f"First 5 elements: {v[:5]}")
-
-        elif isinstance(v, list):
-            print(f"Value is a list with length: {len(v)}")
-            print(f"Elements type: {type(v[0]) if len(v) > 0 else 'N/A'}")
-            print(f"First 5 elements: {v[:5]}")
-    """
+        data = pickle.load(f)
 
     required_keys = ['video-id', 't-start', 't-end', 'label', 'score']
     for key in required_keys:
@@ -56,9 +27,6 @@ def load_pkl(pkl_path:Path):
     prediction = defaultdict(list)
     
     for video_id, t_start, t_end, label, score in zip(data['video-id'], data['t-start'], data['t-end'], data['label'], data['score']):
-        
-        # create a row for each video id, and append the corresponding t_start, t_end, label and score
-        #  for each step in the video to the row
         prediction[str(video_id)].append({
             't_start': t_start,
             't_end': t_end,
@@ -66,32 +34,23 @@ def load_pkl(pkl_path:Path):
             'score': score
         })
 
-
-    #print(prediction["1_20"])
     return prediction
 
-def filter_prediction(row: list, score_threshold: float, min_step_duration: float)-> list:
+def filter_prediction(row: list, score_threshold: float, min_step_duration: float) -> list:
     """
     Filter the prediction for a single video based on score threshold and minimum step duration.
-    
-    Args:
-        row (list): A list of dictionaries, where each dictionary contains 't_start', 't_end', 'label', and 'score' for a step.
-        score_threshold (float): The minimum confidence score required to keep a step.
-        min_step_duration (float): The minimum duration (in seconds) required to keep a step.
     """
     filtered_steps = []
     for step in row:
         st, end, label, score = step['t_start'], step['t_end'], step['label'], step['score']
-        #print(f"Processing step with start time {st}, end time {end}, label {label}, and score {score}")
         if score >= score_threshold and (end - st) >= min_step_duration:
             filtered_steps.append((st, end, label, score))
-    ordered_step=sorted(filtered_steps, key=lambda x: (x[0], x[1]))
+    ordered_step = sorted(filtered_steps, key=lambda x: (x[0], x[1]))
     return ordered_step
 
-def load_npz_features(feature_dir: Path, video_id: str)-> np.ndarray:
+def load_npz_features(feature_dir: Path, video_id: str) -> np.ndarray:
     """Load the features for a specific video from a .npz file."""
     npz_path = feature_dir / f"{video_id}_360p.mp4_1s_1s.npz"
-    print(f"Loading features from: {npz_path}")
 
     with np.load(npz_path) as data:
         if "arr_0" in data:
@@ -106,8 +65,7 @@ def feature_index_from_time(start:float, end:float, segment_sec: float)-> tuple:
     end_index = int(np.ceil(end / segment_sec)) # round up to the right, so that we don't miss any step that ends in the middle of a segment
     return start_index, end_index
 
-def compute_step_embedding(features: np.ndarray, t_start: float, t_end: float, segment_sec: float)-> np.ndarray:
-    # Calculate the start and end indices for the feature segment based on the provided time range and segment duration
+def compute_step_embedding(features: np.ndarray, t_start: float, t_end: float, segment_sec: float) -> np.ndarray:
     start_i, end_i = feature_index_from_time(t_start, t_end, segment_sec)
 
     # total number of segments in the video
@@ -125,10 +83,9 @@ def compute_step_embedding(features: np.ndarray, t_start: float, t_end: float, s
     step_embedding = np.mean(step_features, axis=0) # (D,)
     return step_embedding
 
-def save_step_embeddings( output_dir: Path, step_embeddings: np.ndarray, video_id:str, segments: list, labels: list, scores: list):
+def save_step_embeddings(output_dir: Path, step_embeddings: np.ndarray, video_id: str, segments: list, labels: list, scores: list):
     """Save the computed step embeddings to a .npz file."""
     output_path = output_dir / f"{video_id}.npz"
-    print(f"Saving step embeddings to: {output_path}")
     np.savez(output_path, 
              step_embedding=step_embeddings, #(N,D) number of steps, dimension of the embedding
              segments=segments, #(N,2) start and end time of each step
@@ -137,47 +94,79 @@ def save_step_embeddings( output_dir: Path, step_embeddings: np.ndarray, video_i
 
 
 def main(args):
+    # Cast paths to pathlib.Path objects
+    pkl_path = Path(args.pkl_path)
+    features_dir = Path(args.features_dir)
+    output_dir = Path(args.output_dir)
+    
+    # Create the output directory if it doesn't exist
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    path= ".\output_actionFormer\ego4d\perception_encoder_recordings_reproduce\eval_results.pkl"
-    output_dir = ".\output_step_embeddings\ego4d\perception_encoder"
-    segment_sec = 1/ 1.875
-    pred= load_pkl(path)
+    pred = load_pkl(pkl_path)
     ordered_prediction = defaultdict(list)
+    
     for video_id, row in pred.items():
-        #print(video_id)
-        filtered_steps = filter_prediction(row, score_threshold=0.0, min_step_duration=2.0)
+        print(f"Processing video: {video_id}")
+        filtered_steps = filter_prediction(
+            row, 
+            score_threshold=args.score_threshold, 
+            min_step_duration=args.min_step_duration
+        )
         ordered_prediction[video_id] = filtered_steps
-    #print(ordered_prediction["1_20"])
-    feature_dict= defaultdict(list)
+
+    feature_dict = defaultdict(list)
     for video_id in ordered_prediction.keys():
-        features=load_npz_features(Path(r".\data\features\perception_encoder\npz_features"), video_id)
-        feature_dict[video_id] = features
-    #print(feature_dict["1_20"])
+        features = load_npz_features(features_dir, video_id)
+        # Salviamo le feature solo se sono state trovate
+        if features is not None:
+            feature_dict[video_id] = features
 
     for video_id, steps in ordered_prediction.items():
-        features= feature_dict[video_id]
-        segments=[]
-        labels=[]
-        scores=[]
-        embeddings=[]
+        # Saltiamo il video se non abbiamo trovato le sue features nel passaggio precedente
+        if video_id not in feature_dict:
+            continue
+            
+        features = feature_dict[video_id]
+        segments = []
+        labels = []
+        scores = []
+        embeddings = []
+        
         for step in steps:
             st, end, label, score = step
-            step_embedding = compute_step_embedding(features, st, end, segment_sec)
-            #print(f"Video ID: {video_id}, Step Label: {label}, Step Embedding Shape: {step_embedding.shape}")
+            step_embedding = compute_step_embedding(features, st, end, args.segment_sec)
             embeddings.append(step_embedding)
             segments.append((st, end))
             labels.append(label)
             scores.append(score)
-        save_step_embeddings(Path(output_dir), np.array(embeddings), video_id, segments, labels, scores)
-
+            
+        if embeddings: # Salva solo se c'è almeno un embedding
+            save_step_embeddings(output_dir, np.array(embeddings), video_id, segments, labels, scores)
 
 
 if __name__ == '__main__':
-    """Entry Point"""
-    # the arg parser Path pkl, score_threshold, min_step_duration, path features, path output , segment_sec default=1/1.875
-    parser = argparse.ArgumentParser(
-        description='')
-   
-    parser.add_argument('--stride', default=30, type=int, )
+    parser = argparse.ArgumentParser(description='Step Localization Filtering and Embedding Extraction')
+    
+    # Percorsi file e cartelle
+    parser.add_argument('--pkl_path', type=str, 
+                        default=r".\output_actionFormer\ego4d\perception_encoder_recordings_reproduce\eval_results.pkl",
+                        help='Percorso del file eval_results.pkl')
+    parser.add_argument('--features_dir', type=str, 
+                        default=r".\data\features\perception_encoder\npz_features",
+                        help='Cartella contenente i file di feature .npz')
+    parser.add_argument('--output_dir', type=str, 
+                        default=r".\output_step_embeddings\ego4d\perception_encoder",
+                        help='Cartella di destinazione per gli embedding calcolati')
+    
+    # Iperparametri
+    parser.add_argument('--score_threshold', type=float, default=0.03, 
+                        help='Score di confidenza minimo per mantenere lo step')
+    parser.add_argument('--min_step_duration', type=float, default=1.0, 
+                        help='Durata minima (in secondi) per mantenere lo step')
+    parser.add_argument('--segment_sec', type=float, default=1/1.875, 
+                        help='Durata in secondi di un singolo segmento feature')
+    parser.add_argument('--stride', default=30, type=int, 
+                        help='Parametro stride')
+
     args = parser.parse_args()
     main(args)
