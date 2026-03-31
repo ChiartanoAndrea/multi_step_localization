@@ -3,4 +3,4 @@
 	url = https://github.com/rohithpeddi/actionformer_release.git
 [submodule "captaincook"]
 	path = captaincook
-	url = https://github.com/CaptainCook4D/annotations.git
+	url = https://github.com/ChiartanoAndrea/multi_step_localization
