@@ -82,8 +82,9 @@ def main(args):
         os.mkdir(cfg['output_folder'])
     cfg_filename = os.path.basename(args.config).replace('.yaml', '')
     if len(args.output) == 0:
-        ts = datetime.datetime.fromtimestamp(int(time.time()))
-        ckpt_folder = os.path.join(cfg['output_folder'], cfg['dataset_name'], cfg_filename + '_' + str(ts))
+        # Formattazione sicura per Windows: YYYY-MM-DD_HH-MM-SS
+        ts = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        ckpt_folder = os.path.join(cfg['output_folder'], cfg['dataset_name'], cfg_filename + '_' + ts)
     else:
         ckpt_folder = os.path.join(
             cfg['output_folder'], cfg['dataset_name'],
