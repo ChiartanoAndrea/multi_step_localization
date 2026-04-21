@@ -7,7 +7,6 @@ import shutil
 def run_kfold_pipeline():
     base_yaml_path = "./multi_step_localization/actionformer/configs/ego4d_pe.yaml"
     # Cambiato il percorso per puntare alla cartella KFold
-    #json_folder = "./captaincook_actionformer_annotations/normal/recordings_KFold"
     json_folder = "./captaincook_actionformer_annotations/combined/recordings_KFold"
     
     json_files = glob.glob(os.path.join(json_folder, "*.json"))
@@ -36,10 +35,7 @@ def run_kfold_pipeline():
 
         # 2. Evaluation
         subprocess.run(["python", "./multi_step_localization/eval.py", temp_yaml, "reproduce", "--backbone", "perception_encoder", "--saveonly"], check=True)
-        #for result mAP = 57% circa
-        #subprocess.run(["python", "./multi_step_localization/eval.py", temp_yaml, "reproduce", "--backbone", "perception_encoder",], check=True)
 
-        # 3. CLEANUP: Salviamo il risultato e cancelliamo i modelli pesanti
         res_src = os.path.join(output_dir, "ego4d", "perception_encoder_recordings_reproduce", "eval_results.pkl")
         if os.path.exists(res_src):
             shutil.copy(res_src, f"ActionFormer_eval/final_results_fold_{fold_id}.pkl")
