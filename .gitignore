@@ -162,3 +162,4 @@ cython_debug/
 # result of training
 captaincook_actionformer_annotations/
 ActionFormer_eval/
+output
