@@ -163,3 +163,4 @@ cython_debug/
 captaincook_actionformer_annotations/
 ActionFormer_eval/
 output
+count_row.py
